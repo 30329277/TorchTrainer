@@ -3,7 +3,7 @@ import os
 
 def capture_frames(video_path, output_dir, interval=10):
     """
-    每间隔指定秒数截取视频帧并保存为图片。
+    每间隔指定秒数截取视频帧并保存为图片，文件名格式为 视频名_frame_序号.jpg。
 
     Args:
         video_path (str): 视频文件路径。
@@ -12,6 +12,8 @@ def capture_frames(video_path, output_dir, interval=10):
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
+    video_name = os.path.splitext(os.path.basename(video_path))[0]  # 获取视频文件名（不带扩展名）
 
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)  # 获取视频帧率
@@ -25,8 +27,8 @@ def capture_frames(video_path, output_dir, interval=10):
             break
 
         if frame_count % interval_frames == 0:
-            # 保存帧到输出目录
-            filename = os.path.join(output_dir, f"frame_{saved_count}.jpg")
+            # 保存帧到输出目录, 文件名包含视频名
+            filename = os.path.join(output_dir, f"{video_name}_frame_{saved_count}.jpg")
             cv2.imwrite(filename, frame)
             print(f"Saved: {filename}")
             saved_count += 1
@@ -37,6 +39,6 @@ def capture_frames(video_path, output_dir, interval=10):
     print("视频帧捕获完成。")
 
 if __name__ == "__main__":
-    video_path = r"D:\PythonProject\data\7.mp4" # 替换为您的视频文件路径
-    output_dir = r"D:\PythonProject\objectA model\pictures05"  # 替换为保存帧的目录
+    video_path = r"C:\local\IE4.0\Python\Data\Videos\02980.mp4" # 替换为您的视频文件路径
+    output_dir = r"C:\local\IE4.0\Python\Data\PicturesWithLabel"  # 替换为保存帧的目录
     capture_frames(video_path, output_dir, interval=10)

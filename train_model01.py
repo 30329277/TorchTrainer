@@ -158,7 +158,7 @@ def train_model(data_dir, pretrained_model_path="objectA_detector_model.pth", nu
 if __name__ == '__main__':
     mp.freeze_support()
 
-    data_dir = r"D:\PythonProject\objectA model\pictures05"
+    data_dir = r"C:\local\IE4.0\Python\Data\PicturesWithLabel"
     model_path = "objectA_detector_model.pth"
     num_workers = 0  #  建议设置为 0 或较小的值
 
