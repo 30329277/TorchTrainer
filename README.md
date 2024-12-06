@@ -28,7 +28,7 @@ This project includes three modules:
 ## 使用说明 / Usage  
 
 ### 1. 视频目标检测 / Object Detection in Videos  
-**文件**: `detect_object.py`  
+**文件**: `main.py`  
 修改 `main()` 中的视频路径 `video_path`，运行脚本即可。  
 
 **File**: `detect_object.py`  
