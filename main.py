@@ -69,7 +69,7 @@ def main(video_path):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    interval_frames = int(100 * fps)
+    interval_frames = int(30 * fps)
     frame_count = 0
 
     output_folder = "output_frames"
@@ -122,5 +122,5 @@ def main(video_path):
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    video_path = r"C:\\local\\IE4.0\\Python\\Data\\Videos\\03331.mp4"
+    video_path = r"D:\PythonProject\data\2.mp4"
     main(video_path)

@@ -1,7 +1,7 @@
 import cv2
 import os
 
-def capture_frames(video_path, output_dir, interval=10):
+def capture_frames(video_path, output_dir, interval=30):
     """
     每间隔指定秒数截取视频帧并保存为图片，文件名格式为 视频名_frame_序号.jpg。
 
@@ -39,6 +39,6 @@ def capture_frames(video_path, output_dir, interval=10):
     print("视频帧捕获完成。")
 
 if __name__ == "__main__":
-    video_path = r"C:\local\IE4.0\Python\Data\Videos\02980.mp4" # 替换为您的视频文件路径
-    output_dir = r"C:\local\IE4.0\Python\Data\PicturesWithLabel"  # 替换为保存帧的目录
+    video_path = r"D:\PythonProject\data\MIAA-095.mp4" # 替换为您的视频文件路径
+    output_dir = r"D:\PythonProject\objectA model02"  # 替换为保存帧的目录
     capture_frames(video_path, output_dir, interval=10)
