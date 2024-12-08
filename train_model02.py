@@ -29,14 +29,21 @@ class ObjectDataset(Dataset):
                 if self.check_object_in_xml(os.path.join(data_dir, annotation_file)):
                     self.data.append((img_file, annotation_file))
 
+        if len(self.data) == 0:
+            raise ValueError(f"No matching image and annotation files found for object '{object_name}' in the dataset directory.")
+
+
     def check_object_in_xml(self, xml_path):
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
-        for obj in root.findall('object'):
-            label = obj.find('name').text
-            if label == self.object_name:
-                return True
-        return False
+        try:
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            for obj in root.findall('object'):
+                label = obj.find('name').text
+                if label == self.object_name:
+                    return True
+            return False
+        except ET.ParseError as e:
+            raise ValueError(f"Failed to parse annotation {xml_path}: {e}")
 
     def __len__(self):
         return len(self.data)
@@ -51,18 +58,22 @@ class ObjectDataset(Dataset):
 
         boxes = []
         labels = []
-        tree = ET.parse(annotation_path)
-        root = tree.getroot()
-        for obj in root.findall('object'):
-            label = obj.find('name').text
-            if label == self.object_name:
-                bbox = obj.find('bndbox')
-                xmin = int(bbox.find('xmin').text)
-                ymin = int(bbox.find('ymin').text)
-                xmax = int(bbox.find('xmax').text)
-                ymax = int(bbox.find('ymax').text)
-                boxes.append([xmin, ymin, xmax, ymax])
-                labels.append(1)
+        try:
+            tree = ET.parse(annotation_path)
+            root = tree.getroot()
+            for obj in root.findall('object'):
+                label = obj.find('name').text
+                if label == self.object_name:
+                    bbox = obj.find('bndbox')
+                    xmin = int(bbox.find('xmin').text)
+                    ymin = int(bbox.find('ymin').text)
+                    xmax = int(bbox.find('xmax').text)
+                    ymax = int(bbox.find('ymax').text)
+                    boxes.append([xmin, ymin, xmax, ymax])
+                    labels.append(1)
+        except ET.ParseError as e:
+            raise ValueError(f"Failed to parse annotation {annotation_path}: {e}")
+
 
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         labels = torch.as_tensor(labels, dtype=torch.int64)
@@ -98,23 +109,26 @@ def train_model(data_dir, object_name, num_epochs=10, batch_size=2, learning_rat
     dataset = ObjectDataset(data_dir, object_name, transform=torchvision.transforms.ToTensor())
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, collate_fn=collate_fn, pin_memory=True)
 
-    if os.path.exists(model_path):
-        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False)
-        in_features = model.roi_heads.box_predictor.cls_score.in_features
-        model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 2) # num_classes is always 2 (background + object)
-        model.load_state_dict(torch.load(model_path, map_location='cpu', weights_only=True))
-        print(f"Loaded pretrained model from {model_path}")
-    else:
-        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-        in_features = model.roi_heads.box_predictor.cls_score.in_features
-        model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 2)
-        print("Initialized model with pretrained weights from torchvision")
+    # Load or initialize model
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 2)  # num_classes is always 2 (background + object)
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
 
+
+    if os.path.exists(model_path):
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        print(f"Loaded pretrained model from {model_path}")
+    else:
+        print("Initialized model with pretrained weights from torchvision")
+
+
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(params, lr=learning_rate, momentum=momentum)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1) # Add a learning rate scheduler
+
 
     for epoch in range(num_epochs):
         model.train()
@@ -122,19 +136,26 @@ def train_model(data_dir, object_name, num_epochs=10, batch_size=2, learning_rat
 
         with tqdm.tqdm(data_loader, desc=f"Epoch {epoch+1}/{num_epochs}", unit="batch") as tepoch:
             for images, targets in tepoch:
-                images = list(image.to(device) for image in images)
-                targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+                images = list(image.to(device, non_blocking=True) for image in images)
+                targets = [{k: v.to(device, non_blocking=True) for k, v in t.items()} for t in targets]
 
-                loss_dict = model(images, targets)
-                losses = sum(loss for loss in loss_dict.values())
-                epoch_loss += losses.item()
+                try:
+                    loss_dict = model(images, targets)
+                    losses = sum(loss for loss in loss_dict.values())
+                    epoch_loss += losses.item()
 
-                optimizer.zero_grad()
-                losses.backward()
-                optimizer.step()
+                    optimizer.zero_grad()
+                    losses.backward()
+                    optimizer.step()
+                except RuntimeError as e:
+                    if "CUDA out of memory" in str(e):
+                        print("Out of memory! Reducing batch size or switching to CPU might help.")
+                        raise e
+
 
                 tepoch.set_postfix(loss=losses.item())
 
+        scheduler.step()
         print(f"Epoch {epoch+1}/{num_epochs}, Average Loss: {epoch_loss / len(data_loader)}")
 
     torch.save(model.state_dict(), model_path)
