@@ -31,14 +31,14 @@ This project includes three modules:
 **文件**: `main.py`  
 修改 `main()` 中的视频路径 `video_path`，运行脚本即可。  
 
-**File**: `detect_object.py`  
+**File**: `main.py`  
 Update the video path (`video_path`) in the `main()` function and run the script.  
 
 ### 2. 模型训练 / Model Training  
-**文件**: `train_model.py`  
+**文件**: `train_model01.py`  
 将数据集放在 `data_dir` 路径下，确保包含图像和 XML 标注文件。运行脚本进行模型训练，结果会保存为 `objectA_detector_model.pth`。  
 
-**File**: `train_model.py`  
+**File**: `train_model01.py`  
 Place your dataset in the `data_dir` directory, ensuring it contains images and XML annotation files. Run the script to train the model, and the result will be saved as `objectA_detector_model.pth`.  
 
 ### 3. 视频帧提取 / Video Frame Extraction  
@@ -71,4 +71,3 @@ Update the video path (`video_path`) and output directory (`output_dir`), then r
 3. Use a GPU for faster training.  
 
 Enjoy coding! 😊  
-
