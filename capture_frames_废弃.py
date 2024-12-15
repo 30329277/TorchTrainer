@@ -39,6 +39,6 @@ def capture_frames(video_path, output_dir, interval=60):
     print("视频帧捕获完成。")
 
 if __name__ == "__main__":
-    video_path = r"D:\PythonProject\data\NGOD-184-C.mp4" # 替换为您的视频文件路径
-    output_dir = r"D:\PythonProject\posture model02"  # 替换为保存帧的目录
+    video_path = r"\\192.168.31.1\.mp4" # 替换为您的视频文件路径
+    output_dir = r"D:\PythonProject\posture model03"  # 替换为保存帧的目录
     capture_frames(video_path, output_dir, interval=60)
