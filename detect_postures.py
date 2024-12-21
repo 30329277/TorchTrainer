@@ -105,7 +105,7 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
                 start_time = time_to_seconds(data['time'])
 
             if i + 1 == len(video_data) or time_to_seconds(video_data[i+1]['time']) - time_to_seconds(data['time']) > segment_gap_seconds:
-                segments.append((start_time, time_to_seconds(data['time'])))
+                segments.append((start_time, time_to_seconds(data['time']) + 1))  # 增加1秒以确保包含检测到的时间点
                 start_time = -1
 
         if not segments:
