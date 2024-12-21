@@ -30,17 +30,18 @@ def load_models(model_dir):
     return models, device
 
 def save_detected_frame(frame, predictions, output_path):
-    """保存检测到的帧，并标记方框及得分."""
-    fig, ax = plt.subplots(1)
+    """保存检测到的帧，并标记方框及得分和标签名."""
+    fig, ax = plt.subplots(1, figsize=(12, 8), dpi=100)  # 增加图片清晰度
     ax.imshow(frame)
 
     for i, box in enumerate(predictions['boxes']):
         score = predictions['scores'][i]
+        label = predictions['labels'][i]
         if score > 0.7:  # 只标记得分大于0.7的检测结果
             x1, y1, x2, y2 = box
             rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor='g', facecolor='none')
             ax.add_patch(rect)
-            plt.text(x1, y1, f"{score:.2f}", color='g', fontsize=12, weight='bold')
+            plt.text(x1, y1, f"{label}: {score:.2f}", color='g', fontsize=12, weight='bold')
 
     plt.axis('off')
     plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
@@ -55,9 +56,9 @@ def detect_postures(frame, models, device, label, score_threshold):
             predictions = model(input_tensor)[0]
         for i, score in enumerate(predictions['scores']):
             if predictions['labels'][i] == label and score > score_threshold:
-                combined_predictions['boxes'].append(predictions['boxes'][i])
-                combined_predictions['scores'].append(score)
-                combined_predictions['labels'].append(predictions['labels'][i])
+                combined_predictions['boxes'].append(predictions['boxes'][i].cpu().tolist())
+                combined_predictions['scores'].append(score.cpu().item())
+                combined_predictions['labels'].append(model_name)  # 使用模型名称作为标签名
     return combined_predictions
 
 def format_time(seconds):
