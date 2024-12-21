@@ -2,7 +2,7 @@ import os
 import subprocess
 
 # 输入视频路径和输出目录
-input_video_path = r"D:\PythonProject\data\test\HD_KTB-030.mp4"  # 使用原始字符串，替换为你的 MTS 视频路径
+input_video_path = r"D:\PythonProject\data\test\.mp4"  # 使用原始字符串，替换为你的 MTS 视频路径
 output_dir = "split_video"
 os.makedirs(output_dir, exist_ok=True)
 
