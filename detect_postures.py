@@ -167,6 +167,9 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
                     print(f"Error executing FFmpeg: {e}")
                     continue  # Skip to the next segment
 
+        # 排除尺寸小于10M的临时视频文件
+        temp_files = [f for f in temp_files if os.path.getsize(f) >= 10 * 1024 * 1024]
+
         concat_list_path = os.path.join(output_folder, "concat_list.txt")
         with open(concat_list_path, "w", encoding="utf-8") as f:
             for temp_file in temp_files:
@@ -186,8 +189,8 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         os.remove(concat_list_path)
 
 def main():
-    input_folder = r"D:\PythonProject\data\test"
-    output_folder = r"D:\PythonProject\data\test"
+    input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+    output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
 
     result_file = os.path.join(input_folder, "result.json")
     
@@ -218,7 +221,7 @@ def main():
         predictions = result["predictions"]
         frame_count = result["frame_count"]
         formatted_timestamp = result["time"].replace(":", "_")
-        output_path = os.path.join(output_folder, f"frame_{frame_count}_{formatted_timestamp}.jpg")
+        output_path = os.path.join(output_folder, f"{result['video']}_frame_{frame_count}_{formatted_timestamp}.jpg")
         save_detected_frame(frame, predictions, output_path)
 
     extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds, interval_seconds)
