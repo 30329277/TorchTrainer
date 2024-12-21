@@ -34,8 +34,8 @@ def save_detected_frame(frame, predictions, output_path):
     fig, ax = plt.subplots(1)
     ax.imshow(frame)
 
-    for i, box in enumerate(predictions[0]['boxes']):
-        score = predictions[0]['scores'][i]
+    for i, box in enumerate(predictions['boxes']):
+        score = predictions['scores'][i]
         if score > 0.7:  # 只标记得分大于0.7的检测结果
             x1, y1, x2, y2 = box
             rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor='g', facecolor='none')
@@ -49,16 +49,16 @@ def save_detected_frame(frame, predictions, output_path):
 def detect_postures(frame, models, device, label, score_threshold):
     """检测图像帧中的所有姿势."""
     input_tensor = F.to_tensor(frame).unsqueeze(0).to(device)
-    detected_postures = []
-    predictions = None
+    combined_predictions = {'boxes': [], 'scores': [], 'labels': []}
     for model_name, model in models.items():
         with torch.no_grad():
-            predictions = model(input_tensor)
-        for i, score in enumerate(predictions[0]['scores']):
-            if predictions[0]['labels'][i] == label and score > score_threshold:
-                detected_postures.append(model_name)
-                break  # Once a posture is detected, move to the next model
-    return detected_postures, predictions
+            predictions = model(input_tensor)[0]
+        for i, score in enumerate(predictions['scores']):
+            if predictions['labels'][i] == label and score > score_threshold:
+                combined_predictions['boxes'].append(predictions['boxes'][i])
+                combined_predictions['scores'].append(score)
+                combined_predictions['labels'].append(predictions['labels'][i])
+    return combined_predictions
 
 def format_time(seconds):
     """格式化时间为 时:分:秒."""
@@ -72,9 +72,9 @@ def process_frame(frame, frame_count, fps, models, device, label, score_threshol
     img = frame.to_image()
     img = np.array(img)
     timestamp = frame_count / fps
-    detected_postures, predictions = detect_postures(img, models, device, label, score_threshold)
+    predictions = detect_postures(img, models, device, label, score_threshold)
     formatted_timestamp = format_time(timestamp)
-    return {"time": formatted_timestamp, "postures": detected_postures, "frame": img, "predictions": predictions, "frame_count": frame_count}
+    return {"time": formatted_timestamp, "predictions": predictions, "frame": img, "frame_count": frame_count}
 
 def process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds, queue):
     """处理单个视频."""
@@ -96,8 +96,8 @@ def process_video(video_path, models, device, output_folder, results, label, sco
 
         for future in futures:
             result = future.result()
-            if result["postures"]:
-                video_results.append({"video": video_name, "time": result["time"], "postures": result["postures"]})
+            if result["predictions"]['boxes']:
+                video_results.append({"video": video_name, "time": result["time"], "predictions": result["predictions"]})
                 queue.put(result)
 
     results[video_name] = video_results
@@ -151,15 +151,20 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         output_video = os.path.join(output_folder, f"Extracted_{video_name}.MP4")
         temp_files = []
 
-        for i, (start, end) in enumerate(segments):
-            temp_file = os.path.join(output_folder, f"temp_{video_name}_{i}.mp4")
-            temp_files.append(temp_file)
-            cmd = [ffmpeg_path, "-loglevel", "error", "-i", input_video, "-ss", str(start), "-to", str(end), "-c", "copy", temp_file]
-            try:
-                subprocess.run(cmd, check=True)
-            except subprocess.CalledProcessError as e:
-                print(f"Error executing FFmpeg: {e}")
-                continue  # Skip to the next segment
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = []
+            for i, (start, end) in enumerate(segments):
+                temp_file = os.path.join(output_folder, f"temp_{video_name}_{i}.mp4")
+                temp_files.append(temp_file)
+                cmd = [ffmpeg_path, "-loglevel", "error", "-i", input_video, "-ss", str(start), "-to", str(end), "-c", "copy", temp_file]
+                futures.append(executor.submit(subprocess.run, cmd, check=True))
+
+            for future in futures:
+                try:
+                    future.result()
+                except subprocess.CalledProcessError as e:
+                    print(f"Error executing FFmpeg: {e}")
+                    continue  # Skip to the next segment
 
         concat_list_path = os.path.join(output_folder, "concat_list.txt")
         with open(concat_list_path, "w", encoding="utf-8") as f:
@@ -175,9 +180,9 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
             print(f"Error executing FFmpeg: {e}")
 
         # 暂时不删除临时文件以便调试
-        # for temp_file in temp_files:
-        #     os.remove(temp_file)
-        # os.remove(concat_list_path)
+        for temp_file in temp_files:
+            os.remove(temp_file)
+        os.remove(concat_list_path)
 
 def main():
     input_folder = r"D:\PythonProject\data\test"
