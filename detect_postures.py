@@ -107,7 +107,13 @@ def time_to_seconds(time_str):
     hours, minutes, seconds = map(float, time_str.split(':'))
     return hours * 3600 + minutes * 60 + seconds
 
-def extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds):
+def round_time_to_seconds(time_str):
+    """将时间字符串取整到秒."""
+    hours, minutes, seconds = map(float, time_str.split(':'))
+    rounded_seconds = int(seconds)
+    return f"{int(hours):02}:{int(minutes):02}:{rounded_seconds:02}"
+
+def extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds, interval_seconds):
     """提取并合并视频片段."""
     # 使用FFmpeg的绝对路径, 请修改为你电脑上FFmpeg的实际路径
     ffmpeg_path = r"D:\PythonProject\TorchTrainer\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"  # 替换为你的FFmpeg可执行文件的绝对路径
@@ -116,11 +122,15 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         segments = []
         start_time = -1
         for i, data in enumerate(video_data):
-            if start_time == -1:
-                start_time = time_to_seconds(data['time'])
+            rounded_time = round_time_to_seconds(data['time'])
+            current_time = time_to_seconds(rounded_time)
 
-            if i + 1 == len(video_data) or time_to_seconds(video_data[i+1]['time']) - time_to_seconds(data['time']) > segment_gap_seconds:
-                segments.append((start_time, time_to_seconds(data['time']) + 1))  # 增加1秒以确保包含检测到的时间点
+            if start_time == -1:
+                start_time = current_time
+
+            if i + 1 == len(video_data) or time_to_seconds(round_time_to_seconds(video_data[i+1]['time'])) - current_time > segment_gap_seconds:
+                end_time = current_time + 1  # 增加1秒以确保包含检测到的时间点
+                segments.append((max(0, end_time - interval_seconds), end_time))
                 start_time = -1
 
         if not segments:
@@ -131,10 +141,6 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         temp_files = []
 
         for i, (start, end) in enumerate(segments):
-            # 处理开始和结束时间相同的情况
-            if start == end:
-                end += 0.1  # Add a small duration (0.1 seconds) to the end time
-
             temp_file = os.path.join(output_folder, f"temp_{video_name}_{i}.mp4")
             temp_files.append(temp_file)
             cmd = [ffmpeg_path, "-loglevel", "error", "-i", input_video, "-ss", str(start), "-to", str(end), "-c", "copy", temp_file]
@@ -142,7 +148,6 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
                 subprocess.run(cmd, check=True)
             except subprocess.CalledProcessError as e:
                 print(f"Error executing FFmpeg: {e}")
-                # Handle the error appropriately, e.g., log it, skip the segment, etc.
                 continue  # Skip to the next segment
 
         concat_list_path = os.path.join(output_folder, "concat_list.txt")
@@ -199,7 +204,7 @@ def main():
         output_path = os.path.join(output_folder, f"frame_{frame_count}_{formatted_timestamp}.jpg")
         save_detected_frame(frame, predictions, output_path)
 
-    extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds)
+    extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds, interval_seconds)
 
 if __name__ == "__main__":
     mp.freeze_support()
