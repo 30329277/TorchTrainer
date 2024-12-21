@@ -3,12 +3,12 @@ import subprocess
 from tqdm import tqdm  # 导入 tqdm 库
 
 # 输入视频文件夹路径和输出目录
-input_video_dir = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2"  # 使用原始字符串，替换为你的 MTS 视频文件夹路径
-output_dir = r"D:\PythonProject\posture model04"
+input_video_dir = r"D:\PythonProject\data\test"  # 使用原始字符串，替换为你的 MTS 视频文件夹路径
+output_dir = r"D:\PythonProject\objectA model added01"
 os.makedirs(output_dir, exist_ok=True)
 
 # 定义每隔多少秒保存一帧画面
-frame_interval = 6 * 60  
+frame_interval = 0.1 * 60  
 
 # ffmpeg 可执行文件路径
 ffmpeg_path = r"ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"

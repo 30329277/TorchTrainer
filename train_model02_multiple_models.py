@@ -165,7 +165,7 @@ def train_model(data_dir, object_name, num_epochs=10, batch_size=2, learning_rat
 if __name__ == '__main__':
     mp.freeze_support()
 
-    data_dir = r"D:\PythonProject\objectB model" #  Replace with your data directory
+    data_dir = r"D:\PythonProject\objectA model added01" #  Replace with your data directory
     num_workers = 0
 
     object_names = get_object_names(data_dir)

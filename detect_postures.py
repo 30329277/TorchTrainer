@@ -148,11 +148,6 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         os.remove(concat_list_path)
 
 def main():
-    # input_folder = "input_video"
-    # output_folder = "output_video"
-    # input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
-    # output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
-    
     input_folder = r"D:\PythonProject\data\test"
     output_folder = r"D:\PythonProject\data\test"
 
