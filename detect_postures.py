@@ -25,8 +25,18 @@ def load_models(model_dir):
             models[model_name] = model
     return models, device
 
-def detect_postures(frame, models, device, label, score_threshold):
-    """检测图像帧中的所有姿势."""
+def save_detected_frame(frame, predictions, output_path):
+    """保存检测到的帧，并标记方框及得分."""
+    for i, box in enumerate(predictions[0]['boxes']):
+        score = predictions[0]['scores'][i]
+        if score > 0.7:  # 只标记得分大于0.7的检测结果
+            x1, y1, x2, y2 = map(int, box)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, f"{score:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    cv2.imwrite(output_path, frame)
+
+def detect_postures(frame, models, device, label, score_threshold, output_folder, frame_count):
+    """检测图像帧中的所有姿势，并保存检测到的帧."""
     input_tensor = F.to_tensor(frame).unsqueeze(0).to(device)
     detected_postures = []
     for model_name, model in models.items():
@@ -35,6 +45,8 @@ def detect_postures(frame, models, device, label, score_threshold):
         for i, score in enumerate(predictions[0]['scores']):
             if predictions[0]['labels'][i] == label and score > score_threshold:
                 detected_postures.append(model_name)
+                output_path = os.path.join(output_folder, f"frame_{frame_count}_{model_name}.jpg")
+                save_detected_frame(frame.copy(), predictions, output_path)
                 break  # Once a posture is detected, move to the next model
     return detected_postures
 
@@ -62,7 +74,7 @@ def process_video(video_path, models, device, output_folder, results, label, sco
                 break
 
             if frame_count % interval_frames == 0:
-                detected_postures = detect_postures(frame, models, device, label, score_threshold)
+                detected_postures = detect_postures(frame, models, device, label, score_threshold, output_folder, frame_count)
                 timestamp = frame_count / fps
                 formatted_timestamp = format_time(timestamp)
                 if detected_postures:
@@ -137,8 +149,12 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
 def main():
     # input_folder = "input_video"
     # output_folder = "output_video"
-    input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
-    output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+    # input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+    # output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+    
+    input_folder = r"D:\PythonProject\data\test"
+    output_folder = r"D:\PythonProject\data\test"
+
     result_file = os.path.join(input_folder, "result.json")
     
     label = 1
