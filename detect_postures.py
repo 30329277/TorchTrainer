@@ -120,18 +120,29 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
 
     for video_name, video_data in results.items():
         segments = []
-        start_time = -1
+        processed_times = set()
         for i, data in enumerate(video_data):
             rounded_time = round_time_to_seconds(data['time'])
             current_time = time_to_seconds(rounded_time)
 
-            if start_time == -1:
-                start_time = current_time
+            if rounded_time in processed_times:
+                continue
 
-            if i + 1 == len(video_data) or time_to_seconds(round_time_to_seconds(video_data[i+1]['time'])) - current_time > segment_gap_seconds:
-                end_time = current_time + 1  # 增加1秒以确保包含检测到的时间点
-                segments.append((max(0, end_time - interval_seconds), end_time))
-                start_time = -1
+            start_time = max(0, current_time - interval_seconds)
+            end_time = current_time + 1
+
+            for j in range(i + 1, len(video_data)):
+                next_rounded_time = round_time_to_seconds(video_data[j]['time'])
+                next_time = time_to_seconds(next_rounded_time)
+
+                if next_time - current_time > segment_gap_seconds:
+                    break
+
+                end_time = next_time + 1
+                processed_times.add(next_rounded_time)
+
+            segments.append((start_time, end_time))
+            processed_times.add(rounded_time)
 
         if not segments:
             continue
