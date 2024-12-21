@@ -1,14 +1,19 @@
-import cv2
 import os
 import torch
 import torchvision
 import torch.multiprocessing as mp
 from torchvision.transforms import functional as F
+from torchvision.ops import box_iou
 from tqdm import tqdm
 import json
 import subprocess
 import time
-import shlex
+import av
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 
 def load_models(model_dir):
     """加载所有姿势检测模型."""
@@ -18,7 +23,6 @@ def load_models(model_dir):
         if filename.endswith("_detector_model.pth"):
             model_name = filename[:-len("_detector_model.pth")]
             model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False, num_classes=2)
-            # 使用 weights_only=True 加载模型
             model.load_state_dict(torch.load(os.path.join(model_dir, filename), map_location=device, weights_only=True)) 
             model.eval()
             model.to(device)
@@ -27,29 +31,34 @@ def load_models(model_dir):
 
 def save_detected_frame(frame, predictions, output_path):
     """保存检测到的帧，并标记方框及得分."""
+    fig, ax = plt.subplots(1)
+    ax.imshow(frame)
+
     for i, box in enumerate(predictions[0]['boxes']):
         score = predictions[0]['scores'][i]
         if score > 0.7:  # 只标记得分大于0.7的检测结果
-            x1, y1, x2, y2 = map(int, box)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame, f"{score:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-    cv2.imwrite(output_path, frame)
+            x1, y1, x2, y2 = box
+            rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor='g', facecolor='none')
+            ax.add_patch(rect)
+            plt.text(x1, y1, f"{score:.2f}", color='g', fontsize=12, weight='bold')
 
-def detect_postures(frame, models, device, label, score_threshold, output_folder, frame_count, timestamp):
-    """检测图像帧中的所有姿势，并保存检测到的帧."""
+    plt.axis('off')
+    plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+def detect_postures(frame, models, device, label, score_threshold):
+    """检测图像帧中的所有姿势."""
     input_tensor = F.to_tensor(frame).unsqueeze(0).to(device)
     detected_postures = []
+    predictions = None
     for model_name, model in models.items():
         with torch.no_grad():
             predictions = model(input_tensor)
         for i, score in enumerate(predictions[0]['scores']):
             if predictions[0]['labels'][i] == label and score > score_threshold:
                 detected_postures.append(model_name)
-                formatted_timestamp = format_time(timestamp).replace(":", "_")
-                output_path = os.path.join(output_folder, f"frame_{frame_count}_{formatted_timestamp}_{model_name}.jpg")
-                save_detected_frame(frame.copy(), predictions, output_path)
                 break  # Once a posture is detected, move to the next model
-    return detected_postures
+    return detected_postures, predictions
 
 def format_time(seconds):
     """格式化时间为 时:分:秒."""
@@ -58,33 +67,39 @@ def format_time(seconds):
     seconds = seconds % 60
     return f"{hours:02}:{minutes:02}:{seconds:06.3f}"
 
-def process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds):
+def process_frame(frame, frame_count, fps, models, device, label, score_threshold):
+    """处理单个视频帧."""
+    img = frame.to_image()
+    img = np.array(img)
+    timestamp = frame_count / fps
+    detected_postures, predictions = detect_postures(img, models, device, label, score_threshold)
+    formatted_timestamp = format_time(timestamp)
+    return {"time": formatted_timestamp, "postures": detected_postures, "frame": img, "predictions": predictions, "frame_count": frame_count}
+
+def process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds, queue):
     """处理单个视频."""
-    cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    container = av.open(video_path)
+    fps = float(container.streams.video[0].average_rate)  # 将 fps 转换为浮点数
+    total_frames = container.streams.video[0].frames
     interval_frames = int(interval_seconds * fps)  # Interval in seconds
     frame_count = 0
     video_name = os.path.splitext(os.path.basename(video_path))[0]
     video_results = []
 
-    with tqdm(total=total_frames, desc=f"Processing {video_name}") as pbar:
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
+    with tqdm(total=total_frames, desc=f"Processing {video_name}") as pbar, ThreadPoolExecutor(max_workers=4) as executor:
+        futures = []
+        for frame in container.decode(video=0):
             if frame_count % interval_frames == 0:
-                timestamp = frame_count / fps
-                detected_postures = detect_postures(frame, models, device, label, score_threshold, output_folder, frame_count, timestamp)
-                formatted_timestamp = format_time(timestamp)
-                if detected_postures:
-                    video_results.append({"video": video_name, "time": formatted_timestamp, "postures": detected_postures})
-
+                futures.append(executor.submit(process_frame, frame, frame_count, fps, models, device, label, score_threshold))
             frame_count += 1
             pbar.update(1)
 
-    cap.release()
+        for future in futures:
+            result = future.result()
+            if result["postures"]:
+                video_results.append({"video": video_name, "time": result["time"], "postures": result["postures"]})
+                queue.put(result)
+
     results[video_name] = video_results
 
 def time_to_seconds(time_str):
@@ -122,7 +137,7 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
 
             temp_file = os.path.join(output_folder, f"temp_{video_name}_{i}.mp4")
             temp_files.append(temp_file)
-            cmd = [ffmpeg_path, "-i", input_video, "-ss", str(start), "-to", str(end), "-c", "copy", temp_file]
+            cmd = [ffmpeg_path, "-loglevel", "error", "-i", input_video, "-ss", str(start), "-to", str(end), "-c", "copy", temp_file]
             try:
                 subprocess.run(cmd, check=True)
             except subprocess.CalledProcessError as e:
@@ -137,15 +152,16 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
 
         # 使用绝对路径
         concat_list_path = os.path.abspath(concat_list_path)
-        cmd = [ffmpeg_path, "-f", "concat", "-safe", "0", "-i", concat_list_path, "-fflags", "+genpts", "-c", "copy", output_video]
+        cmd = [ffmpeg_path, "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concat_list_path, "-c", "copy", "-fflags", "+genpts", "-movflags", "+faststart", output_video]
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error executing FFmpeg: {e}")
 
-        for temp_file in temp_files:
-            os.remove(temp_file)
-        os.remove(concat_list_path)
+        # 暂时不删除临时文件以便调试
+        # for temp_file in temp_files:
+        #     os.remove(temp_file)
+        # os.remove(concat_list_path)
 
 def main():
     input_folder = r"D:\PythonProject\data\test"
@@ -164,13 +180,24 @@ def main():
     models, device = load_models(".")  # Load models from the current directory
 
     results = {}
+    queue = Queue()
+
     for filename in os.listdir(input_folder):
         if filename.lower().endswith(('.mp4', '.avi', '.mov')): # Handle various video extensions
             video_path = os.path.join(input_folder, filename)
-            process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds)
+            process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds, queue)
 
     with open(result_file, "w") as f:
         json.dump(results, f, indent=4)
+
+    while not queue.empty():
+        result = queue.get()
+        frame = result["frame"]
+        predictions = result["predictions"]
+        frame_count = result["frame_count"]
+        formatted_timestamp = result["time"].replace(":", "_")
+        output_path = os.path.join(output_folder, f"frame_{frame_count}_{formatted_timestamp}.jpg")
+        save_detected_frame(frame, predictions, output_path)
 
     extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds)
 
