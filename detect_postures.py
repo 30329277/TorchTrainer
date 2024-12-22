@@ -68,14 +68,14 @@ def format_time(seconds):
     seconds = seconds % 60
     return f"{hours:02}:{minutes:02}:{seconds:06.3f}"
 
-def process_frame(frame, frame_count, fps, models, device, label, score_threshold):
+def process_frame(frame, frame_count, fps, models, device, label, score_threshold, video_name):
     """处理单个视频帧."""
     img = frame.to_image()
     img = np.array(img)
     timestamp = frame_count / fps
     predictions = detect_postures(img, models, device, label, score_threshold)
     formatted_timestamp = format_time(timestamp)
-    return {"time": formatted_timestamp, "predictions": predictions, "frame": img, "frame_count": frame_count}
+    return {"time": formatted_timestamp, "predictions": predictions, "frame": img, "frame_count": frame_count, "video": video_name}
 
 def process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds, queue):
     """处理单个视频."""
@@ -91,7 +91,7 @@ def process_video(video_path, models, device, output_folder, results, label, sco
         futures = []
         for frame in container.decode(video=0):
             if frame_count % interval_frames == 0:
-                futures.append(executor.submit(process_frame, frame, frame_count, fps, models, device, label, score_threshold))
+                futures.append(executor.submit(process_frame, frame, frame_count, fps, models, device, label, score_threshold, video_name))
             frame_count += 1
             pbar.update(1)
 
@@ -189,8 +189,12 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         os.remove(concat_list_path)
 
 def main():
-    input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
-    output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+    # input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+    # output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+
+
+    input_folder = r"D:\PythonProject\data\test"
+    output_folder = r"D:\PythonProject\data\test"
 
     result_file = os.path.join(input_folder, "result.json")
     
