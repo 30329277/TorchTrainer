@@ -68,14 +68,14 @@ def format_time(seconds):
     seconds = seconds % 60
     return f"{hours:02}:{minutes:02}:{seconds:06.3f}"
 
-def process_frame(frame, frame_count, fps, models, device, label, score_threshold, video_name):
+def process_frame(frame, frame_count, fps, models, device, label, score_threshold):
     """处理单个视频帧."""
     img = frame.to_image()
     img = np.array(img)
     timestamp = frame_count / fps
     predictions = detect_postures(img, models, device, label, score_threshold)
     formatted_timestamp = format_time(timestamp)
-    return {"time": formatted_timestamp, "predictions": predictions, "frame": img, "frame_count": frame_count, "video": video_name}
+    return {"time": formatted_timestamp, "predictions": predictions, "frame": img, "frame_count": frame_count}
 
 def process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds, queue):
     """处理单个视频."""
@@ -133,6 +133,10 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
     ffmpeg_path = r"D:\PythonProject\TorchTrainer\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"  # 替换为你的FFmpeg可执行文件的绝对路径
 
     for video_name, video_data in results.items():
+        if not os.path.exists(os.path.join(input_folder, f"{video_name}.MP4")):
+            print(f"Warning: {video_name}.MP4 not found in {input_folder}. Skipping this file.")
+            continue
+
         segments = []
         processed_times = set()
         for i, data in enumerate(video_data):
@@ -180,9 +184,6 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
                     print(f"Error executing FFmpeg: {e}")
                     continue  # Skip to the next segment
 
-        # 排除尺寸小于10M的临时视频文件
-        temp_files = [f for f in temp_files if os.path.getsize(f) >= 10 * 1024 * 1024]
-
         concat_list_path = os.path.join(output_folder, "concat_list.txt")
         with open(concat_list_path, "w", encoding="utf-8") as f:
             for temp_file in temp_files:
@@ -202,8 +203,8 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         os.remove(concat_list_path)
 
 def main():
-    input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
-    output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+    input_folder = r"D:\PythonProject\data\test"
+    output_folder = r"D:\PythonProject\data\test"
 
     result_file = os.path.join(input_folder, "result.json")
     
@@ -214,6 +215,18 @@ def main():
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+
+    if os.path.exists(result_file):
+        user_input = input(f"{result_file} already exists. Do you want to overwrite it? (yes/no): ").strip().lower()
+        if user_input == 'no':
+            with open(result_file, "r") as f:
+                results = json.load(f)
+            missing_files = [video_name for video_name in results if not os.path.exists(os.path.join(input_folder, f"{video_name}.MP4"))]
+            if len(missing_files) == len(results):
+                print("Error: None of the files in result.json were found in the input folder. Exiting.")
+                return
+            extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds, interval_seconds)
+            return
 
     models, device = load_models(".")  # Load models from the current directory
 
@@ -234,7 +247,7 @@ def main():
         predictions = result["predictions"]
         frame_count = result["frame_count"]
         formatted_timestamp = result["time"].replace(":", "_")
-        output_path = os.path.join(output_folder, f"{result['video']}_frame_{frame_count}_{formatted_timestamp}.jpg")
+        output_path = os.path.join(output_folder, f"frame_{frame_count}_{formatted_timestamp}.jpg")
         save_detected_frame(frame, predictions, output_path)
 
     extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds, interval_seconds)
