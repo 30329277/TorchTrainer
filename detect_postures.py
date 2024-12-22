@@ -79,7 +79,12 @@ def process_frame(frame, frame_count, fps, models, device, label, score_threshol
 
 def process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds, queue):
     """处理单个视频."""
-    container = av.open(video_path)
+    try:
+        container = av.open(video_path)
+    except av.AVError as e:
+        print(f"Error opening video file {video_path}: {e}")
+        return
+
     fps = float(container.streams.video[0].average_rate)  # 将 fps 转换为浮点数
     total_frames = container.streams.video[0].frames
     interval_frames = int(interval_seconds * fps)  # Interval in seconds
@@ -90,16 +95,24 @@ def process_video(video_path, models, device, output_folder, results, label, sco
     with tqdm(total=total_frames, desc=f"Processing {video_name}") as pbar, ThreadPoolExecutor(max_workers=4) as executor:
         futures = []
         for frame in container.decode(video=0):
-            if frame_count % interval_frames == 0:
-                futures.append(executor.submit(process_frame, frame, frame_count, fps, models, device, label, score_threshold, video_name))
-            frame_count += 1
-            pbar.update(1)
+            try:
+                if frame_count % interval_frames == 0:
+                    futures.append(executor.submit(process_frame, frame, frame_count, fps, models, device, label, score_threshold, video_name))
+                frame_count += 1
+                pbar.update(1)
+            except av.AVError as e:
+                print(f"Error decoding frame {frame_count}: {e}")
+                continue  # Skip the problematic frame
 
         for future in futures:
-            result = future.result()
-            if result["predictions"]['boxes']:
-                video_results.append({"video": video_name, "time": result["time"], "predictions": result["predictions"]})
-                queue.put(result)
+            try:
+                result = future.result()
+                if result["predictions"]['boxes']:
+                    video_results.append({"video": video_name, "time": result["time"], "predictions": result["predictions"]})
+                    queue.put(result)
+            except Exception as e: # 捕获处理帧过程中的其他潜在错误
+                print(f"Error processing frame in {video_name}: {e}. Skipping this frame.")
+                continue
 
     results[video_name] = video_results
 
@@ -189,12 +202,8 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         os.remove(concat_list_path)
 
 def main():
-    # input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
-    # output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
-
-
-    input_folder = r"D:\PythonProject\data\test"
-    output_folder = r"D:\PythonProject\data\test"
+    input_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
+    output_folder = r"\\192.168.31.1\XiaoMi-usb0\newdownload\2024-2\新建文件夹"
 
     result_file = os.path.join(input_folder, "result.json")
     
