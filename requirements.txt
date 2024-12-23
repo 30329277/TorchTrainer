@@ -31,3 +31,14 @@ torch==2.5.1
 tqdm==4.67.1
 typing_extensions==4.12.2
 urllib3==2.2.3
+
+# 使用 pip freeze 命令生成的包列表
+```
+
+在命令行中运行以下命令，将当前环境中的包更新到 `requirements.txt` 文件中：
+
+```bash
+pip freeze > /d:/PythonProject/TorchTrainer/requirements.txt
+```
+
+这将生成当前环境中的所有包及其版本，并将其写入 `requirements.txt` 文件中。

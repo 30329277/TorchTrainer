@@ -212,6 +212,7 @@ def main():
     score_threshold = 0.7
     interval_seconds = 60*1  # Interval in seconds for processing frames
     segment_gap_seconds = 60*3  # Gap in seconds to consider segments separate
+    file_size_limit = 3 * 1024 * 1024 * 1024  # File size limit in bytes (3GB)
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -236,6 +237,9 @@ def main():
     for filename in os.listdir(input_folder):
         if filename.lower().endswith(('.mp4', '.avi', '.mov')): # Handle various video extensions
             video_path = os.path.join(input_folder, filename)
+            if os.path.getsize(video_path) <= file_size_limit:  # Skip files not greater than the file size limit
+                print(f"Skipping {filename} as it is not greater than {file_size_limit / (1024 * 1024 * 1024)}GB.")
+                continue
             process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds, queue)
 
     with open(result_file, "w") as f:
