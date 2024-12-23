@@ -68,14 +68,14 @@ def format_time(seconds):
     seconds = seconds % 60
     return f"{hours:02}:{minutes:02}:{seconds:06.3f}"
 
-def process_frame(frame, frame_count, fps, models, device, label, score_threshold):
+def process_frame(frame, frame_count, fps, models, device, label, score_threshold, video_name):
     """处理单个视频帧."""
     img = frame.to_image()
     img = np.array(img)
     timestamp = frame_count / fps
     predictions = detect_postures(img, models, device, label, score_threshold)
     formatted_timestamp = format_time(timestamp)
-    return {"time": formatted_timestamp, "predictions": predictions, "frame": img, "frame_count": frame_count}
+    return {"time": formatted_timestamp, "predictions": predictions, "frame": img, "frame_count": frame_count, "video": video_name}
 
 def process_video(video_path, models, device, output_folder, results, label, score_threshold, interval_seconds, queue):
     """处理单个视频."""
@@ -203,8 +203,8 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         os.remove(concat_list_path)
 
 def main():
-    input_folder = r"D:\PythonProject\data\test"
-    output_folder = r"D:\PythonProject\data\test"
+    input_folder = r"D:\PythonProject\data\test02"
+    output_folder = r"D:\PythonProject\data\test02"
 
     result_file = os.path.join(input_folder, "result.json")
     
@@ -212,7 +212,7 @@ def main():
     score_threshold = 0.7
     interval_seconds = 60*1  # Interval in seconds for processing frames
     segment_gap_seconds = 60*3  # Gap in seconds to consider segments separate
-    file_size_limit = 3 * 1024 * 1024 * 1024  # File size limit in bytes (3GB)
+    file_size_limit = 0.1 * 1024 * 1024 * 1024  # File size limit in bytes (3GB)
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -251,7 +251,7 @@ def main():
         predictions = result["predictions"]
         frame_count = result["frame_count"]
         formatted_timestamp = result["time"].replace(":", "_")
-        output_path = os.path.join(output_folder, f"frame_{frame_count}_{formatted_timestamp}.jpg")
+        output_path = os.path.join(output_folder, f"{result['video']}_frame_{frame_count}_{formatted_timestamp}.jpg")
         save_detected_frame(frame, predictions, output_path)
 
     extract_and_merge_segments(input_folder, output_folder, results, segment_gap_seconds, interval_seconds)
