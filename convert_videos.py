@@ -17,17 +17,34 @@ def convert_to_mp4(input_path, output_path, log_file):
     command = [
         ffmpeg_path,
         "-i", input_path,
-        "-c:v", "libx264",
-        "-c:a", "aac",
+        "-map", "0:0",  # 视频流
+        "-map", "0:1",  # 音频流
+        "-c", "copy",   # 使用复制模式，避免重新编码
         output_path
     ]
+    
     try:
-        result = subprocess.run(command, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
-        os.remove(input_path)  # 删除原文件
+        result = subprocess.run(command, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            os.remove(input_path)  # 只在成功时删除原文件
     except subprocess.CalledProcessError as e:
-        with open(log_file, "a") as log:
-            log.write(f"Failed to convert {input_path}: {e}\n")
-            log.write(f"Error output: {e.stderr.decode()}\n")
+        print(f"Failed to convert {input_path}, trying fallback method...")
+        # 失败时尝试第二种方法
+        fallback_command = [
+            ffmpeg_path,
+            "-i", input_path,
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            output_path
+        ]
+        try:
+            result = subprocess.run(fallback_command, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                os.remove(input_path)
+        except subprocess.CalledProcessError as e2:
+            with open(log_file, "a") as log:
+                log.write(f"Failed to convert {input_path} with both methods: {e2}\n")
+                log.write(f"Error output: {e2.stderr.decode()}\n")
 
 def process_folder(folder_path):
     """Process all video files in the folder and its subfolders."""
