@@ -2,12 +2,12 @@ import os
 import subprocess
 
 # 输入视频路径和输出目录
-input_video_path = r"D:\PythonProject\data\test\.mp4"  # 使用原始字符串，替换为你的 MTS 视频路径
+input_video_path = r"D:\PythonProject\data\videos\test\12.1上.wmv"  # 使用原始字符串，替换为你的 MTS 视频路径
 output_dir = "split_video"
 os.makedirs(output_dir, exist_ok=True)
 
 # 定义每个视频片段的时长（单位：秒）
-segment_duration = 20 * 60  # 10分钟
+segment_duration = 200 * 60  # 10分钟
 
 # ffmpeg 可执行文件路径
 ffmpeg_path = r"ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"
@@ -23,7 +23,7 @@ def split_video(input_path, output_directory, segment_length):
     command_video = [
         ffmpeg_path,
         "-i", input_path,
-        "-c", "copy",
+        "-c:v", "copy",
         "-map", "0:0",
         "-map", "0:1",
         "-segment_time", str(segment_length),
@@ -38,6 +38,24 @@ def split_video(input_path, output_directory, segment_length):
         print(f"视频已成功分割并保存在 {output_directory} 文件夹中")
     except subprocess.CalledProcessError as e:
         print(f"处理失败: {e}")
+        print("尝试启用音频和视频转换选项...")
+        command_video = [
+            ffmpeg_path,
+            "-i", input_path,
+            "-c:v", "libx264",  # 转换视频编码为 H.264
+            "-c:a", "aac",      # 转换音频编码为 AAC
+            "-map", "0:0",
+            "-map", "0:1",
+            "-segment_time", str(segment_length),
+            "-f", "segment",
+            "-reset_timestamps", "1",
+            output_video_template
+        ]
+        try:
+            subprocess.run(command_video, check=True)
+            print(f"视频已成功分割并保存在 {output_directory} 文件夹中")
+        except subprocess.CalledProcessError as e:
+            print(f"处理失败: {e}")
 
 # 调用函数进行视频分割
 split_video(input_video_path, output_dir, segment_duration)

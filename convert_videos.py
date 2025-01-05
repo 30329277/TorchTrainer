@@ -70,5 +70,5 @@ def process_folder(folder_path):
                     pbar.update(1)
 
 if __name__ == "__main__":
-    folder_path = r"D:\PythonProject\data\videos"  # 替换为你的文件夹路径
+    folder_path = r"D:\PythonProject\data\videos\test"  # 替换为你的文件夹路径
     process_folder(folder_path)
