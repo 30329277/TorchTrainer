@@ -203,8 +203,8 @@ def extract_and_merge_segments(input_folder, output_folder, results, segment_gap
         os.remove(concat_list_path)
 
 def main():
-    input_folder = r"D:\PythonProject\data\test02"
-    output_folder = r"D:\PythonProject\data\test02"
+    input_folder = r"D:\PythonProject\data\videos"
+    output_folder = r"D:\PythonProject\data\videos"
 
     result_file = os.path.join(input_folder, "result.json")
     
@@ -212,7 +212,7 @@ def main():
     score_threshold = 0.7
     interval_seconds = 60*1  # Interval in seconds for processing frames
     segment_gap_seconds = 60*3  # Gap in seconds to consider segments separate
-    file_size_limit = 0.1 * 1024 * 1024 * 1024  # File size limit in bytes (3GB)
+    file_size_limit = 3 * 1024 * 1024 * 1024  # File size limit in bytes (3GB)
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
